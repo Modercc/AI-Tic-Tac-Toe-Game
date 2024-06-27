@@ -1,3 +1,4 @@
+import math
 import random
 
 import numpy as np
@@ -24,8 +25,23 @@ def max_value(state: npt.ArrayLike, alpha: float, beta: float, k: int):
         tuple[float, np.ndarray]: utility value and the board after the move
     """
 
-    # TODO:
-    return 0, state
+    if utility(state, k) is not None:
+        return utility(state, k), None
+
+    v = float('-inf')
+    possible_moves = successors(state, 'X')
+    for a in possible_moves:
+
+        v2, a2 = min_value(a, alpha, beta, k)
+
+        if v2 > v:
+            v, move = v2, a
+            alpha = max(alpha, v)
+
+        if v >= beta:
+            return v, move
+
+    return v, move
 
 
 def min_value(state: npt.ArrayLike, alpha: float, beta: float, k: int):
@@ -41,17 +57,31 @@ def min_value(state: npt.ArrayLike, alpha: float, beta: float, k: int):
         tuple[float, np.ndarray]: utility value and the board after the move
     """
 
-    # TODO:
-    return 0, state
+    if utility(state, k) is not None:
+        return utility(state, k), None
+
+    v = float('inf')
+    possible_moves = successors(state, 'O')
+    for a in possible_moves:
+
+        v2, a2 = max_value(a, alpha, beta, k)
+
+        if v2 < v:
+            v, move = v2, a
+            beta = min(beta, v)
+
+        if v <= alpha:
+            return v, move
+
+    return v, move
 
 
 """
 Monte Carlo Tree Search
 """
 
-
 def select(tree: "Tree", state: npt.ArrayLike, k: int, alpha: float):
-    """Starting from state, find a terminal node or node with unexpanded
+    """Starting from state, find a terminal node or node with unexpandedfu
     children. If all children of a node are in tree, move to the one with the
     highest UCT value.
 
@@ -64,9 +94,27 @@ def select(tree: "Tree", state: npt.ArrayLike, k: int, alpha: float):
         np.ndarray: the game board state
     """
 
-    # TODO:
-    return state
+    if utility(state, k) is not None:
+        return state
 
+    node = tree.get(state)
+
+    max_uct = float('-inf')
+
+    for child_state in successors(state, node.player):
+
+        child_node = tree.get(child_state)
+
+        if child_node is None:
+            return state;
+
+        uct = child_node.w / child_node.N + alpha * math.sqrt(math.log(node.N) / child_node.N)
+
+        if uct > max_uct:
+            max_uct = uct
+            max_state = child_state
+
+    return select(tree, max_state, k, alpha)
 
 def expand(tree: "Tree", state: npt.ArrayLike, k: int):
     """Add a child node of state into the tree if it's not terminal and return
@@ -80,9 +128,30 @@ def expand(tree: "Tree", state: npt.ArrayLike, k: int):
         tuple[utils.Tree, np.ndarray]: the tree and the game state
     """
 
-    # TODO:
-    return tree, state
+    if utility(state, k) is not None:
+        return tree, state
 
+    node = tree.get(state)
+
+    for child_state in successors(state, node.player):
+
+        child_node = tree.get(child_state)
+
+        if child_node is None:
+
+            new_node_w = 0
+            new_node_N = 0
+            new_node_state = child_state
+            if node.player == 'X':
+                new_node_player = 'O'
+            else:
+                new_node_player = 'X'
+
+            child_node = Node(new_node_state, node, new_node_player, new_node_w, new_node_N)
+
+            tree.add(child_node)
+
+            return tree, child_state
 
 def simulate(state: npt.ArrayLike, player: str, k: int):
     """Run one game rollout from state to a terminal state using random
@@ -96,9 +165,17 @@ def simulate(state: npt.ArrayLike, player: str, k: int):
         float: the utility
     """
 
-    # TODO:
-    return 0
+    if utility(state, k) is not None:
+        return utility(state, k)
 
+    if player == 'X':
+        next_player = 'O'
+    else:
+        next_player = 'X'
+
+    random_next_state = random.choice(successors(state, player))
+
+    return simulate(random_next_state, next_player, k)
 
 def backprop(tree: "Tree", state: npt.ArrayLike, result: float):
     """Backpropagate result from state up to the root.
@@ -115,7 +192,23 @@ def backprop(tree: "Tree", state: npt.ArrayLike, result: float):
         utils.Tree: the game tree
     """
 
-    # TODO:
+    node = tree.get(state)
+
+    if result == 0:
+        node.w += 0.5
+    else:
+        if node.player == 'X':
+            node.w -= result
+        else:
+            node.w += result
+
+    node.N += 1
+
+    if node.parent is not None:
+
+        parent_state = node.parent.state
+        backprop(tree, parent_state, result)
+
     return tree
 
 
